@@ -1,0 +1,54 @@
+{
+  "name": "sinochat",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@11.19.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @sinochat/web",
+    "dev:api": "npm run start:dev --workspace @sinochat/api",
+    "local:storage:configure": "node scripts/configure-local-storage.mjs",
+    "check:storage": "npm run storage:check --workspace @sinochat/api",
+    "check:e2ee-runtime": "npm run check:e2ee-runtime --workspace @sinochat/web",
+    "check:e2ee-browser": "npm run check:e2ee-browser --workspace @sinochat/web",
+    "check:device-approval-sdk": "npm run check:device-approval-sdk --workspace @sinochat/web",
+    "check:sas-comparison": "npm run check:sas-comparison --workspace @sinochat/web",
+    "check:sas-panel": "npm run check:sas-panel --workspace @sinochat/web",
+    "check:matrix-db": "npm run matrix:check --workspace @sinochat/api",
+    "check:cross-signing-db": "npm run cross-signing:check --workspace @sinochat/api",
+    "check:recovery-db": "npm run recovery:check --workspace @sinochat/api",
+    "check:webauthn-db": "npm run webauthn:check --workspace @sinochat/api",
+    "check:webauthn-concurrency": "npm run webauthn:concurrency --workspace @sinochat/api",
+    "check:webauthn-browser": "node scripts/check-admin-webauthn-browser.mjs",
+    "build:contracts": "npm run build --workspace @sinochat/contracts",
+    "build": "npm run build:contracts && npm run build --workspace @sinochat/api && npm run build --workspace @sinochat/web",
+    "test": "npm run test --workspace @sinochat/contracts && npm run test --workspace @sinochat/api && npm run test --workspace @sinochat/web",
+    "typecheck": "npm run build:contracts && npm run typecheck --workspace @sinochat/contracts && npm run typecheck --workspace @sinochat/api && npm run typecheck --workspace @sinochat/web"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.12.0 || >=24.0.0",
+    "npm": ">=11.19.1 <12"
+  },
+  "overrides": {
+    "@hono/node-server": "2.0.12",
+    "deepmerge-ts": "8.0.2",
+    "multer": "2.3.0",
+    "mysql2": "3.24.2",
+    "nanoid": "3.3.18",
+    "qs": "6.16.0",
+    "valibot": "1.4.2"
+  },
+  "devDependencies": {
+    "playwright-core": "1.62.1",
+    "prisma": "7.10.0"
+  },
+  "allowScripts": {
+    "argon2@0.45.1": true,
+    "esbuild@0.25.12": true,
+    "@prisma/engines@7.10.0": true,
+    "prisma@7.10.0": true
+  }
+}

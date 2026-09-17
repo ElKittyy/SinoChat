@@ -1,0 +1,42 @@
+{
+  "name": "@sinochat/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --configLoader runner",
+    "build": "node scripts/build.mjs",
+    "preview": "vite preview --configLoader runner",
+    "test": "node scripts/check-admin-reason-contract.mjs && node scripts/check-admin-webauthn-contract.mjs && node scripts/check-cashier-recovery-contract.mjs && node scripts/check-conversation-panel-contract.mjs && npm run check:message-payload && npm run check:secure-message-controller && npm run check:local-retention && npm run check:e2ee-message-codec && npm run check:e2ee-runtime && npm run check:e2ee-cross-signing && npm run check:sas-comparison && npm run check:device-approval-sdk && npm run check:sas-panel && npm run check:e2ee-image-attachment && npm run check:megolm-adapter && npm run check:e2ee-relay && npm run check:e2ee-olm-characterization && npm run check:e2ee-megolm-characterization",
+    "check:message-payload": "node src/messagePayload.test.mjs",
+    "check:secure-message-controller": "node scripts/check-secure-message-controller.mjs",
+    "check:e2ee-message-codec": "node src/e2ee/messageContent.test.mjs",
+    "check:e2ee-runtime": "node scripts/check-e2ee-runtime.mjs",
+    "check:e2ee-cross-signing": "node scripts/check-e2ee-cross-signing.mjs",
+    "check:sas-comparison": "node scripts/check-matrix-sas-comparison.mjs",
+    "check:device-approval-sdk": "node scripts/characterize-matrix-device-approval.mjs",
+    "check:sas-panel": "node scripts/check-sas-comparison-panel.mjs",
+    "check:e2ee-browser": "node scripts/check-e2ee-browser.mjs",
+    "check:megolm-adapter": "node scripts/check-megolm-message-adapter.mjs",
+    "check:local-retention": "node scripts/check-local-message-retention.mjs",
+    "check:e2ee-relay": "node --test scripts/fixtures/matrix-browser-relay.test.mjs",
+    "check:e2ee-image-attachment": "node scripts/check-e2ee-image-attachment.mjs",
+    "check:e2ee-olm-characterization": "node scripts/characterize-matrix-application-olm.mjs",
+    "check:e2ee-megolm-characterization": "node scripts/characterize-matrix-megolm-history.mjs",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@matrix-org/matrix-sdk-crypto-wasm": "18.6.0",
+    "@simplewebauthn/browser": "13.3.0",
+    "@sinochat/contracts": "0.1.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.0.8",
+    "@types/react-dom": "19.0.3",
+    "@vitejs/plugin-react": "4.3.4",
+    "typescript": "5.7.3",
+    "vite": "6.4.3"
+  }
+}

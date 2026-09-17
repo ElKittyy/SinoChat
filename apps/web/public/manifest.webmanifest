@@ -1,0 +1,52 @@
+{
+  "id": "/",
+  "name": "SinoChat",
+  "short_name": "SinoChat",
+  "description": "Comunicación privada entre clientes y cajeros.",
+  "lang": "es",
+  "dir": "ltr",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#080808",
+  "theme_color": "#111111",
+  "categories": ["communication", "social"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/assets/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/pwa-icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Abrir mi panel",
+      "short_name": "Mi panel",
+      "description": "Abrir el acceso seguro de SinoChat",
+      "url": "/app",
+      "icons": [
+        {
+          "src": "/assets/pwa-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

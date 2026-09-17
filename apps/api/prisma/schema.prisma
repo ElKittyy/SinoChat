@@ -1,0 +1,1356 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+  runtime      = "nodejs"
+  engineType   = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CLIENT
+  CASHIER
+  ADMIN
+}
+
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum CashierApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVOKED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum AssignmentStartReason {
+  INVITATION
+  CLIENT_BLOCKED_CASHIER
+  CLIENT_REPORTED_CASHIER
+  CASHIER_BLOCKED_CLIENT
+  CASHIER_UNAVAILABLE
+  ADMINISTRATIVE
+}
+
+enum AssignmentEndReason {
+  CLIENT_BLOCKED_CASHIER
+  CLIENT_REPORTED_CASHIER
+  CASHIER_BLOCKED_CLIENT
+  CASHIER_UNAVAILABLE
+  CLIENT_SUSPENDED
+  CASHIER_SUSPENDED
+  ACCOUNT_DELETED
+  ADMINISTRATIVE
+}
+
+enum ReassignmentReason {
+  CLIENT_BLOCKED_CASHIER
+  CLIENT_REPORTED_CASHIER
+  CASHIER_BLOCKED_CLIENT
+  CASHIER_UNAVAILABLE
+  ADMINISTRATIVE
+}
+
+enum ReassignmentStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum ConversationStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum DeviceStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum RecoveryBundleProtection {
+  RECOVERY_CODE
+  TRUSTED_DEVICE
+}
+
+enum MessageKind {
+  TEXT
+  IMAGE
+}
+
+enum MessageDeliveryStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
+enum AttachmentUploadStatus {
+  PENDING
+  AVAILABLE
+  PURGE_PENDING
+  PURGE_FAILED
+}
+
+enum BlockInitiator {
+  CLIENT
+  CASHIER
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  CLOSING
+  CLOSED
+}
+
+enum ReportOutcome {
+  NO_ACTION
+  WARNING
+  CASHIER_SUSPENDED
+  CASHIER_DELETED
+  OTHER
+}
+
+enum AccountReviewReason {
+  FIVE_DISTINCT_CASHIER_BLOCKS
+  ADMINISTRATIVE
+}
+
+enum AccountReviewStatus {
+  OPEN
+  IN_REVIEW
+  CLOSED
+}
+
+enum AccountReviewOutcome {
+  REACTIVATED
+  REMAINS_SUSPENDED
+  ACCOUNT_DELETED
+  OTHER
+}
+
+enum AdminWebAuthnChallengePurpose {
+  REGISTRATION
+  AUTHENTICATION
+}
+
+enum NotificationType {
+  NEW_MESSAGE
+  MESSAGE_DELIVERED
+  MESSAGE_READ
+  ASSIGNMENT_CHANGED
+  ACCOUNT_STATUS_CHANGED
+  REPORT_RESOLVED
+  REPORT_WARNING
+}
+
+enum AdminAuditAction {
+  USER_CREATED
+  USER_UPDATED
+  USER_SUSPENDED
+  USER_REACTIVATED
+  USER_DELETED
+  PASSWORD_RESET
+  CASHIER_APPROVED
+  CASHIER_REJECTED
+  CASHIER_APPROVAL_REVOKED
+  SUBSCRIPTION_ACTIVATED
+  SUBSCRIPTION_DEACTIVATED
+  CLIENT_REASSIGNED
+  REPORT_OPENED
+  REPORT_REVIEW_STARTED
+  REPORT_EVIDENCE_ACCESSED
+  REPORT_CLOSED
+  ACCOUNT_REVIEW_OPENED
+  ACCOUNT_REVIEW_CLOSED
+  CASHIER_ONBOARDING_INVITATION_CREATED
+  CASHIER_ONBOARDING_INVITATION_REVOKED
+  INVITATION_REVOKED
+  ADMIN_SESSION_REVOKED
+  ADMIN_OTHER_SESSIONS_REVOKED
+  ADMIN_PASSKEY_REGISTERED
+  ADMIN_PASSKEY_REVOKED
+  ADMIN_MFA_RECOVERED
+}
+
+enum AdminAuditTargetType {
+  USER
+  CASHIER_PROFILE
+  SUBSCRIPTION
+  ASSIGNMENT
+  REPORT
+  ACCOUNT_REVIEW
+  CASHIER_ONBOARDING_INVITATION
+  INVITATION
+  AUTH_SESSION
+}
+
+model User {
+  id                    String        @id @default(uuid()) @db.Uuid
+  role                  UserRole
+  username              String        @db.VarChar(50)
+  normalizedUsername    String        @unique(map: "users_normalized_username_key") @map("normalized_username") @db.VarChar(50)
+  passwordHash          String        @map("password_hash") @db.VarChar(255)
+  passwordChangedAt     DateTime      @default(now()) @map("password_changed_at") @db.Timestamptz(6)
+  passwordResetRequired Boolean       @default(false) @map("password_reset_required")
+  sessionVersion        Int           @default(1) @map("session_version")
+  status                AccountStatus @default(PENDING)
+  failedLoginAttempts   Int           @default(0) @map("failed_login_attempts")
+  lockedUntil           DateTime?     @map("locked_until") @db.Timestamptz(6)
+  lastLoginAt           DateTime?     @map("last_login_at") @db.Timestamptz(6)
+  suspendedAt           DateTime?     @map("suspended_at") @db.Timestamptz(6)
+  suspensionReasonCode  String?       @map("suspension_reason_code") @db.VarChar(64)
+  deletedAt             DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  adminWebAuthnUserHandle Bytes?       @unique(map: "users_admin_webauthn_user_handle_key") @map("admin_webauthn_user_handle")
+
+  clientProfile                  ClientProfile?
+  cashierProfile                 CashierProfile?
+  sessions                       AuthSession[]
+  devices                        Device[]
+  encryptedKeyBundles            EncryptedKeyBundle[]
+  termsAcceptances               TermsAcceptance[]
+  cashierApprovals               CashierProfile[]              @relation("CashierApprovedBy")
+  managedSubscriptions           CashierSubscription[]         @relation("SubscriptionManagedBy")
+  cashierOnboardingInvites       CashierOnboardingInvitation[] @relation("CashierOnboardingInvitationCreatedBy")
+  administrativeAssignments      Assignment[]                  @relation("AssignmentCreatedBy")
+  reportsReviewed                Report[]                      @relation("ReportReviewedBy")
+  reportClosuresRequested        ReportClosureJob[]            @relation("ReportClosureRequestedBy")
+  accountReviewsAssigned         AccountReview[]               @relation("AccountReviewAssignedTo")
+  accountReviewsClosed           AccountReview[]               @relation("AccountReviewClosedBy")
+  messageReceipts                MessageReceipt[]
+  notifications                  InAppNotification[]
+  pendingAttachmentUploads       PendingAttachmentUpload[]
+  pendingEvidenceUploads         PendingReportEvidenceUpload[]
+  auditEventsAuthored            AdminAuditEvent[]             @relation("AuditActor")
+  auditEventsTargeting           AdminAuditEvent[]             @relation("AuditTargetUser")
+  matrixDeviceListState          MatrixDeviceListState?
+  matrixDeviceRegistrations      MatrixDeviceRegistration[]
+  matrixListChangesReceived      MatrixDeviceListChange[]      @relation("MatrixListChangeRecipient")
+  matrixListChangesSubject       MatrixDeviceListChange[]      @relation("MatrixListChangeSubject")
+  cashierPasswordResetsInitiated CashierPasswordReset[]        @relation("CashierPasswordResetInitiatedBy")
+  adminWebAuthnCredentials       AdminWebAuthnCredential[]
+  adminWebAuthnChallenges        AdminWebAuthnChallenge[]
+  adminRecoveryCodes             AdminRecoveryCode[]
+
+  @@index([role, status], map: "users_role_status_idx")
+  @@index([deletedAt], map: "users_deleted_at_idx")
+  @@map("users")
+}
+
+model ClientProfile {
+  userId          String   @id @map("user_id") @db.Uuid
+  dateOfBirth     DateTime @map("date_of_birth") @db.Date
+  declaredAdultAt DateTime @map("declared_adult_at") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  assignments   Assignment[]
+  blocks        Block[]
+  reviews       AccountReview[]
+  reassignments ReassignmentRequest[]
+
+  @@map("client_profiles")
+}
+
+model CashierProfile {
+  userId            String                @id @map("user_id") @db.Uuid
+  dateOfBirth       DateTime              @map("date_of_birth") @db.Date
+  declaredAdultAt   DateTime              @map("declared_adult_at") @db.Timestamptz(6)
+  email             String                @db.VarChar(254)
+  normalizedEmail   String                @unique(map: "cashier_profiles_normalized_email_key") @map("normalized_email") @db.VarChar(254)
+  phoneE164         String                @unique(map: "cashier_profiles_phone_e164_key") @map("phone_e164") @db.VarChar(20)
+  emailVerifiedAt   DateTime?             @map("email_verified_at") @db.Timestamptz(6)
+  phoneVerifiedAt   DateTime?             @map("phone_verified_at") @db.Timestamptz(6)
+  approvalStatus    CashierApprovalStatus @default(PENDING) @map("approval_status")
+  approvedAt        DateTime?             @map("approved_at") @db.Timestamptz(6)
+  approvedByAdminId String?               @map("approved_by_admin_id") @db.Uuid
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user                      User                         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  approvedByAdmin           User?                        @relation("CashierApprovedBy", fields: [approvedByAdminId], references: [id], onDelete: SetNull)
+  invitations               CashierInvitation[]
+  subscriptions             CashierSubscription[]
+  assignments               Assignment[]
+  blocks                    Block[]
+  excludedFromReassignments ReassignmentRequest[]        @relation("ReassignmentExcludedCashier")
+  onboardingInvitation      CashierOnboardingInvitation?
+  recoveryCodes             CashierRecoveryCode[]
+  passwordResets            CashierPasswordReset[]
+
+  @@index([approvalStatus], map: "cashier_profiles_approval_status_idx")
+  @@map("cashier_profiles")
+}
+
+model TermsDocument {
+  id          String    @id @default(uuid()) @db.Uuid
+  version     String    @unique @db.VarChar(32)
+  contentHash String    @unique(map: "terms_documents_content_hash_key") @map("content_hash") @db.Char(64)
+  contentType String?   @map("content_type") @db.VarChar(32)
+  content     Bytes?
+  byteSize    Int?      @map("byte_size")
+  effectiveAt DateTime  @map("effective_at") @db.Timestamptz(6)
+  retiredAt   DateTime? @map("retired_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  acceptances TermsAcceptance[]
+
+  @@map("terms_documents")
+}
+
+model TermsAcceptance {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  termsDocumentId String   @map("terms_document_id") @db.Uuid
+  acceptedAt      DateTime @default(now()) @map("accepted_at") @db.Timestamptz(6)
+  ipHash          String?  @map("ip_hash") @db.Char(64)
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  termsDocument TermsDocument @relation(fields: [termsDocumentId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, termsDocumentId], map: "terms_acceptances_user_document_key")
+  @@index([termsDocumentId, acceptedAt], map: "terms_acceptances_document_at_idx")
+  @@map("terms_acceptances")
+}
+
+model AuthSession {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  deviceId         String?   @map("device_id") @db.Uuid
+  tokenHash        String    @unique(map: "auth_sessions_token_hash_key") @map("token_hash") @db.Char(64)
+  csrfSecretHash   String    @map("csrf_secret_hash") @db.Char(64)
+  sessionVersion   Int       @map("session_version")
+  ipHash           String?   @map("ip_hash") @db.Char(64)
+  userAgentHash    String?   @map("user_agent_hash") @db.Char(64)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt       DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revocationReason String?   @map("revocation_reason") @db.VarChar(64)
+  adminMfaVerifiedAt DateTime? @map("admin_mfa_verified_at") @db.Timestamptz(6)
+
+  user                       User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device                     Device?                     @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  matrixDeviceRegistrations  MatrixDeviceRegistration[]
+  matrixToDeviceTransactions MatrixToDeviceTransaction[]
+  adminWebAuthnChallenges     AdminWebAuthnChallenge[]
+  matrixDeviceCandidates     MatrixDeviceCandidate[]
+  matrixVerificationFlowsReviewed MatrixDeviceVerificationFlow[]
+
+  @@index([userId, expiresAt], map: "auth_sessions_user_expires_idx")
+  @@index([expiresAt], map: "auth_sessions_expires_idx")
+  @@map("auth_sessions")
+}
+
+model AdminWebAuthnCredential {
+  id            String    @id @default(uuid()) @db.Uuid
+  adminUserId   String    @map("admin_user_id") @db.Uuid
+  credentialId  String    @unique(map: "admin_webauthn_credentials_credential_key") @map("credential_id") @db.VarChar(1024)
+  publicKey     Bytes     @map("public_key")
+  counter       BigInt    @default(0)
+  transports    String[]  @default([])
+  deviceType    String    @map("device_type") @db.VarChar(16)
+  backedUp      Boolean   @default(false) @map("backed_up")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt    DateTime? @map("last_used_at") @db.Timestamptz(6)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  admin User @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
+
+  @@index([adminUserId, revokedAt], map: "admin_webauthn_credentials_admin_active_idx")
+  @@map("admin_webauthn_credentials")
+}
+
+model AdminWebAuthnChallenge {
+  id          String                         @id @default(uuid()) @db.Uuid
+  adminUserId String                         @map("admin_user_id") @db.Uuid
+  sessionId   String                         @map("session_id") @db.Uuid
+  purpose     AdminWebAuthnChallengePurpose
+  challengeHash String                       @unique(map: "admin_webauthn_challenges_hash_key") @map("challenge_hash") @db.Char(64)
+  createdAt   DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt   DateTime                       @map("expires_at") @db.Timestamptz(6)
+  consumedAt  DateTime?                      @map("consumed_at") @db.Timestamptz(6)
+
+  admin   User        @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
+  session AuthSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, purpose, expiresAt], map: "admin_webauthn_challenges_admin_expiry_idx")
+  @@index([expiresAt, consumedAt], map: "admin_webauthn_challenges_expiry_idx")
+  @@map("admin_webauthn_challenges")
+}
+
+model AdminRecoveryCode {
+  id          String    @id @default(uuid()) @db.Uuid
+  adminUserId String    @map("admin_user_id") @db.Uuid
+  codeHash    String    @unique(map: "admin_recovery_codes_hash_key") @map("code_hash") @db.Char(64)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  usedAt      DateTime? @map("used_at") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  admin User @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
+
+  @@index([adminUserId, usedAt, revokedAt], map: "admin_recovery_codes_available_idx")
+  @@map("admin_recovery_codes")
+}
+
+model CashierRecoveryCode {
+  id            String    @id @default(uuid()) @db.Uuid
+  cashierUserId String    @map("cashier_user_id") @db.Uuid
+  codeHash      String    @unique(map: "cashier_recovery_codes_hash_key") @map("code_hash") @db.Char(64)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz(6)
+  usedAt        DateTime? @map("used_at") @db.Timestamptz(6)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  cashier       CashierProfile        @relation(fields: [cashierUserId], references: [userId], onDelete: Restrict)
+  passwordReset CashierPasswordReset?
+
+  @@unique([id, cashierUserId], map: "cashier_recovery_codes_id_cashier_key")
+  @@index([cashierUserId, usedAt, revokedAt, expiresAt], map: "cashier_recovery_codes_available_idx")
+  @@map("cashier_recovery_codes")
+}
+
+model CashierPasswordReset {
+  id                     String    @id @default(uuid()) @db.Uuid
+  cashierUserId          String    @map("cashier_user_id") @db.Uuid
+  initiatedByAdminUserId String    @map("initiated_by_admin_user_id") @db.Uuid
+  recoveryCodeId         String?   @unique(map: "cashier_password_resets_recovery_code_key") @map("recovery_code_id") @db.Uuid
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt              DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt             DateTime? @map("consumed_at") @db.Timestamptz(6)
+  supersededAt           DateTime? @map("superseded_at") @db.Timestamptz(6)
+
+  cashier          CashierProfile       @relation(fields: [cashierUserId], references: [userId], onDelete: Restrict)
+  initiatedByAdmin User                 @relation("CashierPasswordResetInitiatedBy", fields: [initiatedByAdminUserId], references: [id], onDelete: Restrict)
+  recoveryCode     CashierRecoveryCode? @relation(fields: [recoveryCodeId, cashierUserId], references: [id, cashierUserId], onDelete: Restrict)
+
+  @@unique([recoveryCodeId, cashierUserId], map: "cashier_password_resets_code_cashier_key")
+  @@index([cashierUserId, expiresAt], map: "cashier_password_resets_cashier_expires_idx")
+  @@index([expiresAt, consumedAt, supersededAt], map: "cashier_password_resets_state_idx")
+  @@map("cashier_password_resets")
+}
+
+model Device {
+  id                     String       @id @default(uuid()) @db.Uuid
+  userId                 String       @map("user_id") @db.Uuid
+  registrationId         Int?         @map("registration_id")
+  identityPublicKey      Bytes?       @map("identity_public_key")
+  identityKeyFingerprint String?      @unique(map: "devices_identity_fingerprint_key") @map("identity_key_fingerprint") @db.Char(64)
+  signedPreKeyId         Int?         @map("signed_pre_key_id")
+  signedPreKeyPublic     Bytes?       @map("signed_pre_key_public")
+  signedPreKeySignature  Bytes?       @map("signed_pre_key_signature")
+  bindingSecretHash      String       @map("binding_secret_hash") @db.Char(64)
+  protocolVersion        String       @map("protocol_version") @db.VarChar(32)
+  status                 DeviceStatus @default(ACTIVE)
+  createdAt              DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt             DateTime?    @map("last_seen_at") @db.Timestamptz(6)
+  revokedAt              DateTime?    @map("revoked_at") @db.Timestamptz(6)
+
+  user                   User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions               AuthSession[]
+  oneTimePreKeys         OneTimePreKey[]
+  sourceRecoveryBundles  EncryptedKeyBundle[]        @relation("RecoveryBundleSourceDevice")
+  sentMessages           Message[]                   @relation("MessageSenderDevice")
+  messageEnvelopes       MessageEnvelope[]           @relation("EnvelopeRecipientDevice")
+  preKeyClaimsRequested  OneTimePreKeyClaim[]        @relation("PreKeyClaimRequesterDevice")
+  preKeyClaimsReceived   OneTimePreKeyClaim[]        @relation("PreKeyClaimRecipientDevice")
+  pushSubscriptions      PushSubscription[]
+  matrixDeviceKey        MatrixDeviceKey?
+  matrixOneTimeKeys      MatrixOneTimeKey[]
+  matrixFallbackKeys     MatrixFallbackKey[]
+  matrixFallbackSlots    MatrixFallbackKeySlot[]
+  matrixClaimsRequested  MatrixKeyClaimRequest[]
+  matrixClaimsReceived   MatrixKeyClaimResult[]      @relation("MatrixClaimRecipientDevice")
+  matrixListChanges      MatrixDeviceListChange[]
+  matrixToDeviceCursor   MatrixToDeviceCursor?
+  matrixToDeviceSent     MatrixToDeviceTransaction[]
+  matrixToDeviceReceived MatrixToDeviceEvent[]       @relation("MatrixToDeviceRecipient")
+
+  @@unique([id, userId], map: "devices_id_user_key")
+  @@unique([userId, registrationId], map: "devices_user_registration_key")
+  @@index([userId, status], map: "devices_user_status_idx")
+  @@map("devices")
+}
+
+model OneTimePreKey {
+  id        String    @id @default(uuid()) @db.Uuid
+  deviceId  String    @map("device_id") @db.Uuid
+  keyId     Int       @map("key_id")
+  publicKey Bytes     @map("public_key")
+  signature Bytes?    @map("signature")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  claimedAt DateTime? @map("claimed_at") @db.Timestamptz(6)
+
+  device Device              @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  claim  OneTimePreKeyClaim?
+
+  @@unique([deviceId, keyId], map: "one_time_pre_keys_device_key_id_key")
+  @@index([deviceId, claimedAt], map: "one_time_pre_keys_available_idx")
+  @@map("one_time_pre_keys")
+}
+
+model OneTimePreKeyClaim {
+  id                String   @id @default(uuid()) @db.Uuid
+  requesterDeviceId String   @map("requester_device_id") @db.Uuid
+  conversationId    String   @map("conversation_id") @db.Uuid
+  recipientDeviceId String   @map("recipient_device_id") @db.Uuid
+  oneTimePreKeyId   String?  @unique(map: "one_time_pre_key_claims_pre_key_key") @map("one_time_pre_key_id") @db.Uuid
+  claimedAt         DateTime @map("claimed_at") @db.Timestamptz(6)
+
+  requesterDevice Device         @relation("PreKeyClaimRequesterDevice", fields: [requesterDeviceId], references: [id], onDelete: Restrict)
+  conversation    Conversation   @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  recipientDevice Device         @relation("PreKeyClaimRecipientDevice", fields: [recipientDeviceId], references: [id], onDelete: Restrict)
+  oneTimePreKey   OneTimePreKey? @relation(fields: [oneTimePreKeyId], references: [id], onDelete: Restrict)
+
+  @@unique([requesterDeviceId, conversationId, recipientDeviceId], map: "one_time_pre_key_claims_request_key")
+  @@index([conversationId, claimedAt], map: "one_time_pre_key_claims_conversation_idx")
+  @@index([recipientDeviceId, claimedAt], map: "one_time_pre_key_claims_recipient_idx")
+  @@map("one_time_pre_key_claims")
+}
+
+/// Reserva un UUID de dispositivo antes de inicializar OlmMachine. La
+/// finalizacion crea Device + MatrixDeviceKey y consume la reserva en una
+/// unica transaccion.
+model MatrixDeviceRegistration {
+  id                     String    @id @default(uuid()) @db.Uuid
+  userId                 String    @map("user_id") @db.Uuid
+  sessionId              String    @map("session_id") @db.Uuid
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt              DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt             DateTime? @map("consumed_at") @db.Timestamptz(6)
+  initialUploadSha256    String?   @map("initial_upload_sha256") @db.Char(64)
+  initialOneTimeKeyCount Int?      @map("initial_one_time_key_count")
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session AuthSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt], map: "matrix_device_registrations_user_expires_idx")
+  @@index([sessionId], map: "matrix_device_registrations_session_idx")
+  @@map("matrix_device_registrations")
+}
+
+enum MatrixDeviceCandidateStatus {
+  PENDING
+  CANCELLED
+  EXPIRED
+}
+
+/// Quarantine only: no Device, key directory, prekeys, cursor or session binding.
+/// SQL enforces one pending request per user and irreversible terminal states.
+model MatrixDeviceCandidate {
+  id                      String @id @db.Uuid
+  userId                  String @map("user_id") @db.Uuid
+  sessionId               String @map("session_id") @db.Uuid
+  sessionVersion          Int @map("session_version")
+  matrixUserId            String @map("matrix_user_id") @db.VarChar(289)
+  matrixDeviceId          String @unique(map: "matrix_device_candidates_matrix_device_key") @map("matrix_device_id") @db.VarChar(33)
+  trustedDeviceId         String @map("trusted_device_id") @db.Uuid
+  identityBootstrapSha256 String @map("identity_bootstrap_sha256") @db.Char(64)
+  deviceKeys              Json @map("device_keys")
+  canonicalSha256         String @map("canonical_sha256") @db.Char(64)
+  ed25519Key              String @map("ed25519_key") @db.Char(43)
+  curve25519Key           String @map("curve25519_key") @db.Char(43)
+  status                  MatrixDeviceCandidateStatus @default(PENDING)
+  createdAt               DateTime @map("created_at") @db.Timestamptz(6)
+  expiresAt               DateTime @map("expires_at") @db.Timestamptz(6)
+  resolvedAt              DateTime? @map("resolved_at") @db.Timestamptz(6)
+
+  session       AuthSession @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  identity      MatrixCrossSigningIdentity @relation(fields: [userId, matrixUserId], references: [userId, matrixUserId], onDelete: Restrict, onUpdate: Restrict)
+  trustedDevice MatrixDeviceKey @relation(fields: [trustedDeviceId, userId], references: [deviceId, userId], onDelete: Restrict, onUpdate: Restrict)
+  verificationFlow MatrixDeviceVerificationFlow?
+
+  @@unique([id, userId], map: "matrix_device_candidates_id_user_key")
+  @@index([userId, status, expiresAt], map: "matrix_device_candidates_user_pending_idx")
+  @@index([sessionId], map: "matrix_device_candidates_session_idx")
+  @@map("matrix_device_candidates")
+}
+
+enum MatrixDeviceVerificationFlowStatus {
+  PENDING
+  CANCELLED
+  EXPIRED
+}
+
+/// Admission of one immutable SAS request in quarantine, not delivery or approval.
+/// Both participant sessions and the candidate must remain eligible for use.
+model MatrixDeviceVerificationFlow {
+  candidateId            String @id @map("candidate_id") @db.Uuid
+  userId                 String @map("user_id") @db.Uuid
+  flowId                 String @map("flow_id") @db.VarChar(255)
+  reviewerSessionId      String @map("reviewer_session_id") @db.Uuid
+  reviewerSessionVersion Int @map("reviewer_session_version")
+  requestTransactionId   String @map("request_transaction_id") @db.VarChar(255)
+  requestContent         Json @map("request_content")
+  requestSha256          String @map("request_sha256") @db.Char(64)
+  createdAt              DateTime @map("created_at") @db.Timestamptz(6)
+  expiresAt              DateTime @map("expires_at") @db.Timestamptz(6)
+  resolvedAt             DateTime? @map("resolved_at") @db.Timestamptz(6)
+  status                 MatrixDeviceVerificationFlowStatus @default(PENDING)
+
+  candidate       MatrixDeviceCandidate @relation(fields: [candidateId, userId], references: [id, userId], onDelete: Restrict, onUpdate: Restrict)
+  reviewerSession AuthSession @relation(fields: [reviewerSessionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([candidateId, userId], map: "matrix_device_verification_flows_candidate_owner_key")
+  @@unique([userId, flowId], map: "matrix_device_verification_flows_user_flow_key")
+  @@unique([userId, requestTransactionId], map: "matrix_device_verification_flows_user_request_txn_key")
+  @@index([reviewerSessionId], map: "matrix_device_verification_flows_reviewer_session_idx")
+  @@index([userId, status, expiresAt], map: "matrix_device_verification_flows_user_pending_idx")
+  @@map("matrix_device_verification_flows")
+}
+
+model MatrixDeviceListState {
+  userId       String   @id @map("user_id") @db.Uuid
+  matrixUserId String   @unique(map: "matrix_device_list_states_matrix_user_key") @map("matrix_user_id") @db.VarChar(289)
+  version      BigInt   @default(0)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  deviceKeys MatrixDeviceKey[]
+  crossSigningIdentity MatrixCrossSigningIdentity?
+
+  @@unique([userId, matrixUserId], map: "matrix_device_list_states_user_matrix_key")
+  @@map("matrix_device_list_states")
+}
+
+model MatrixDeviceKey {
+  deviceId        String   @id @map("device_id") @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  matrixUserId    String   @map("matrix_user_id") @db.VarChar(289)
+  matrixDeviceId  String   @unique(map: "matrix_device_keys_matrix_device_key") @map("matrix_device_id") @db.VarChar(33)
+  curve25519Key   String   @unique(map: "matrix_device_keys_curve25519_key") @map("curve25519_key") @db.Char(43)
+  ed25519Key      String   @unique(map: "matrix_device_keys_ed25519_key") @map("ed25519_key") @db.Char(43)
+  deviceKeys      Json     @map("device_keys")
+  canonicalSha256 String   @map("canonical_sha256") @db.Char(64)
+  uploadedAt      DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+
+  device    Device                @relation(fields: [deviceId, userId], references: [id, userId], onDelete: Restrict)
+  listState MatrixDeviceListState @relation(fields: [userId, matrixUserId], references: [userId, matrixUserId], onDelete: Restrict)
+  bootstrapIdentity MatrixCrossSigningIdentity? @relation("MatrixCrossSigningBootstrapDevice")
+  crossSigningCertificate MatrixDeviceCrossSigning?
+  candidateRequests MatrixDeviceCandidate[]
+
+  @@unique([deviceId, userId], map: "matrix_device_keys_device_user_key")
+  @@unique([matrixUserId, matrixDeviceId], map: "matrix_device_keys_user_device_key")
+  @@index([userId, uploadedAt], map: "matrix_device_keys_user_uploaded_idx")
+  @@map("matrix_device_keys")
+}
+
+/// Public-only, immutable initial cross-signing identity. The initial device
+/// certificate is required at transaction commit by a deferred SQL foreign key.
+/// No reset/rotation, private keys, or additional-device approval is represented.
+model MatrixCrossSigningIdentity {
+  userId            String   @id @map("user_id") @db.Uuid
+  matrixUserId      String   @unique(map: "matrix_cross_signing_identities_matrix_user_key") @map("matrix_user_id") @db.VarChar(289)
+  bootstrapDeviceId String   @unique(map: "matrix_cross_signing_identities_bootstrap_device_key") @map("bootstrap_device_id") @db.Uuid
+  masterKey         String   @map("master_key") @db.Char(43)
+  selfSigningKey    String   @map("self_signing_key") @db.Char(43)
+  userSigningKey    String   @map("user_signing_key") @db.Char(43)
+  signingKeys       Json     @map("signing_keys")
+  bootstrapSha256   String   @map("bootstrap_sha256") @db.Char(64)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  listState MatrixDeviceListState @relation(fields: [userId, matrixUserId], references: [userId, matrixUserId], onDelete: Restrict, map: "matrix_cross_signing_identities_list_state_fkey")
+  bootstrapDevice MatrixDeviceKey @relation("MatrixCrossSigningBootstrapDevice", fields: [bootstrapDeviceId, userId], references: [deviceId, userId], onDelete: Restrict, map: "matrix_cross_signing_identities_bootstrap_device_fkey")
+  bootstrapCertificate MatrixDeviceCrossSigning @relation("MatrixCrossSigningBootstrapCertificate", fields: [bootstrapDeviceId, userId], references: [deviceId, userId], onDelete: Restrict, onUpdate: Restrict, map: "matrix_cross_signing_identities_bootstrap_certificate_fkey")
+  certificates MatrixDeviceCrossSigning[] @relation("MatrixCrossSigningDeviceCertificates")
+  candidateRequests MatrixDeviceCandidate[]
+
+  @@unique([bootstrapDeviceId, userId], map: "matrix_cross_signing_identities_bootstrap_owner_key")
+  @@unique([userId, matrixUserId], map: "matrix_cross_signing_identities_user_matrix_key")
+  @@map("matrix_cross_signing_identities")
+}
+
+/// Immutable certified copy, separate from MatrixDeviceKey.deviceKeys so the
+/// original self-signed registration object remains untouched and replayable.
+/// SQL currently admits only the initial bootstrap device, not a second device.
+model MatrixDeviceCrossSigning {
+  deviceId         String   @id @map("device_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  signedDeviceKeys  Json     @map("signed_device_keys")
+  canonicalSha256   String   @map("canonical_sha256") @db.Char(64)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  deviceKeys MatrixDeviceKey @relation(fields: [deviceId, userId], references: [deviceId, userId], onDelete: Restrict, map: "matrix_device_cross_signings_device_owner_fkey")
+  identity MatrixCrossSigningIdentity @relation("MatrixCrossSigningDeviceCertificates", fields: [userId], references: [userId], onDelete: Restrict, map: "matrix_device_cross_signings_identity_fkey")
+  bootstrappedIdentity MatrixCrossSigningIdentity? @relation("MatrixCrossSigningBootstrapCertificate")
+
+  @@unique([deviceId, userId], map: "matrix_device_cross_signings_device_owner_key")
+  @@index([userId, createdAt], map: "matrix_device_cross_signings_user_created_idx")
+  @@map("matrix_device_cross_signings")
+}
+
+model MatrixOneTimeKey {
+  id              String    @id @default(uuid()) @db.Uuid
+  deviceId        String    @map("device_id") @db.Uuid
+  algorithm       String    @db.VarChar(32)
+  keyId           String    @map("key_id") @db.VarChar(64)
+  curve25519Key   String    @unique(map: "matrix_one_time_keys_curve25519_key") @map("curve25519_key") @db.Char(43)
+  signedKey       Json      @map("signed_key")
+  canonicalSha256 String    @map("canonical_sha256") @db.Char(64)
+  uploadedAt      DateTime  @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+  claimedAt       DateTime? @map("claimed_at") @db.Timestamptz(6)
+
+  device      Device                @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  claimResult MatrixKeyClaimResult?
+
+  @@unique([deviceId, algorithm, keyId], map: "matrix_one_time_keys_device_algorithm_key")
+  @@index([deviceId, algorithm, claimedAt, uploadedAt, id], map: "matrix_one_time_keys_available_idx")
+  @@map("matrix_one_time_keys")
+}
+
+model MatrixFallbackKey {
+  id              String    @id @default(uuid()) @db.Uuid
+  deviceId        String    @map("device_id") @db.Uuid
+  algorithm       String    @db.VarChar(32)
+  keyId           String    @map("key_id") @db.VarChar(64)
+  curve25519Key   String    @unique(map: "matrix_fallback_keys_curve25519_key") @map("curve25519_key") @db.Char(43)
+  signedKey       Json      @map("signed_key")
+  canonicalSha256 String    @map("canonical_sha256") @db.Char(64)
+  uploadedAt      DateTime  @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+  firstClaimedAt  DateTime? @map("first_claimed_at") @db.Timestamptz(6)
+
+  device       Device                 @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  currentSlot  MatrixFallbackKeySlot?
+  claimResults MatrixKeyClaimResult[]
+
+  @@unique([deviceId, algorithm, keyId], map: "matrix_fallback_keys_device_algorithm_key")
+  @@unique([id, deviceId, algorithm], map: "matrix_fallback_keys_identity_key")
+  @@index([deviceId, algorithm, uploadedAt], map: "matrix_fallback_keys_device_uploaded_idx")
+  @@map("matrix_fallback_keys")
+}
+
+model MatrixFallbackKeySlot {
+  deviceId             String @map("device_id") @db.Uuid
+  algorithm            String @db.VarChar(32)
+  currentFallbackKeyId String @unique(map: "matrix_fallback_key_slots_current_key") @map("current_fallback_key_id") @db.Uuid
+
+  device     Device            @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  currentKey MatrixFallbackKey @relation(fields: [currentFallbackKeyId, deviceId, algorithm], references: [id, deviceId, algorithm], onDelete: Restrict)
+
+  @@id([deviceId, algorithm])
+  @@unique([currentFallbackKeyId, deviceId, algorithm], map: "matrix_fallback_key_slots_identity_key")
+  @@map("matrix_fallback_key_slots")
+}
+
+model MatrixKeyClaimRequest {
+  id                String   @id @default(uuid()) @db.Uuid
+  requesterDeviceId String   @map("requester_device_id") @db.Uuid
+  conversationId    String?  @map("conversation_id") @db.Uuid
+  requestId         String   @map("request_id") @db.VarChar(64)
+  requestSha256     String   @map("request_sha256") @db.Char(64)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  requesterDevice Device                 @relation(fields: [requesterDeviceId], references: [id], onDelete: Restrict)
+  conversation    Conversation?          @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  results         MatrixKeyClaimResult[]
+
+  @@unique([requesterDeviceId, requestId], map: "matrix_key_claim_requests_request_key")
+  @@index([conversationId, createdAt], map: "matrix_key_claim_requests_conversation_idx")
+  @@map("matrix_key_claim_requests")
+}
+
+model MatrixKeyClaimResult {
+  id                String   @id @default(uuid()) @db.Uuid
+  claimRequestId    String   @map("claim_request_id") @db.Uuid
+  recipientDeviceId String   @map("recipient_device_id") @db.Uuid
+  algorithm         String   @db.VarChar(32)
+  oneTimeKeyId      String?  @unique(map: "matrix_key_claim_results_one_time_key") @map("one_time_key_id") @db.Uuid
+  fallbackKeyId     String?  @map("fallback_key_id") @db.Uuid
+  claimedAt         DateTime @map("claimed_at") @db.Timestamptz(6)
+
+  claimRequest    MatrixKeyClaimRequest @relation(fields: [claimRequestId], references: [id], onDelete: Restrict)
+  recipientDevice Device                @relation("MatrixClaimRecipientDevice", fields: [recipientDeviceId], references: [id], onDelete: Restrict)
+  oneTimeKey      MatrixOneTimeKey?     @relation(fields: [oneTimeKeyId], references: [id], onDelete: Restrict)
+  fallbackKey     MatrixFallbackKey?    @relation(fields: [fallbackKeyId], references: [id], onDelete: Restrict)
+
+  @@unique([claimRequestId, recipientDeviceId, algorithm], map: "matrix_key_claim_results_target_key")
+  @@index([recipientDeviceId, claimedAt], map: "matrix_key_claim_results_recipient_idx")
+  @@map("matrix_key_claim_results")
+}
+
+model MatrixDeviceListStream {
+  id        Int      @id
+  position  BigInt   @default(0)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("matrix_device_list_stream")
+}
+
+model MatrixDeviceListChange {
+  id              String   @id @default(uuid()) @db.Uuid
+  changeId        String   @map("change_id") @db.Uuid
+  streamPosition  BigInt   @map("stream_position")
+  recipientUserId String   @map("recipient_user_id") @db.Uuid
+  subjectUserId   String   @map("subject_user_id") @db.Uuid
+  subjectVersion  BigInt   @map("subject_version")
+  changeType      String   @map("change_type") @db.VarChar(16)
+  sourceDeviceId  String?  @map("source_device_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  recipient    User    @relation("MatrixListChangeRecipient", fields: [recipientUserId], references: [id], onDelete: Restrict)
+  subject      User    @relation("MatrixListChangeSubject", fields: [subjectUserId], references: [id], onDelete: Restrict)
+  sourceDevice Device? @relation(fields: [sourceDeviceId], references: [id], onDelete: Restrict)
+
+  @@unique([changeId, recipientUserId], map: "matrix_device_list_changes_fanout_key")
+  @@unique([recipientUserId, streamPosition], map: "matrix_device_list_changes_recipient_position_key")
+  @@index([recipientUserId, streamPosition], map: "matrix_device_list_changes_recipient_stream_idx")
+  @@index([subjectUserId, streamPosition], map: "matrix_device_list_changes_subject_stream_idx")
+  @@map("matrix_device_list_changes")
+}
+
+model MatrixToDeviceCursor {
+  deviceId       String   @id @map("device_id") @db.Uuid
+  latestSequence BigInt   @default(0) @map("latest_sequence")
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  device  Device                    @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  events  MatrixToDeviceEvent[]
+  batches MatrixToDeviceSyncBatch[]
+
+  @@map("matrix_to_device_cursors")
+}
+
+model MatrixToDeviceTransaction {
+  id              String   @id @default(uuid()) @db.Uuid
+  senderSessionId String   @map("sender_session_id") @db.Uuid
+  senderDeviceId  String   @map("sender_device_id") @db.Uuid
+  transactionId   String   @map("transaction_id") @db.VarChar(255)
+  eventType       String   @map("event_type") @db.VarChar(255)
+  requestSha256   String   @map("request_sha256") @db.Char(64)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  senderSession AuthSession           @relation(fields: [senderSessionId], references: [id], onDelete: Restrict)
+  senderDevice  Device                @relation(fields: [senderDeviceId], references: [id], onDelete: Restrict)
+  events        MatrixToDeviceEvent[]
+
+  @@unique([senderDeviceId, eventType, transactionId], map: "matrix_to_device_transactions_device_endpoint_txn_key")
+  @@index([senderDeviceId, createdAt], map: "matrix_to_device_transactions_sender_idx")
+  @@map("matrix_to_device_transactions")
+}
+
+model MatrixToDeviceEvent {
+  id                String   @id @default(uuid()) @db.Uuid
+  transactionRowId  String   @map("transaction_row_id") @db.Uuid
+  recipientUserId   String   @map("recipient_user_id") @db.Uuid
+  recipientDeviceId String   @map("recipient_device_id") @db.Uuid
+  recipientSequence BigInt   @map("recipient_sequence")
+  conversationId    String?  @map("conversation_id") @db.Uuid
+  content           Json
+  contentSha256     String   @map("content_sha256") @db.Char(64)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt         DateTime @map("expires_at") @db.Timestamptz(6)
+
+  transaction  MatrixToDeviceTransaction @relation(fields: [transactionRowId], references: [id], onDelete: Restrict)
+  recipient    Device                    @relation("MatrixToDeviceRecipient", fields: [recipientDeviceId, recipientUserId], references: [id, userId], onDelete: Restrict)
+  cursor       MatrixToDeviceCursor      @relation(fields: [recipientDeviceId], references: [deviceId], onDelete: Restrict)
+  conversation Conversation?             @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+
+  @@unique([transactionRowId, recipientDeviceId], map: "matrix_to_device_events_transaction_device_key")
+  @@unique([recipientDeviceId, recipientSequence], map: "matrix_to_device_events_recipient_sequence_key")
+  @@index([recipientDeviceId, recipientSequence], map: "matrix_to_device_events_recipient_stream_idx")
+  @@index([expiresAt], map: "matrix_to_device_events_expires_idx")
+  @@map("matrix_to_device_events")
+}
+
+model MatrixToDeviceSyncBatch {
+  id                     String    @id @default(uuid()) @db.Uuid
+  deviceId               String    @map("device_id") @db.Uuid
+  previousBatchId        String?   @unique(map: "matrix_to_device_sync_batches_previous_key") @map("previous_batch_id") @db.Uuid
+  tokenHash              String    @unique(map: "matrix_to_device_sync_batches_token_hash_key") @map("token_hash") @db.Char(64)
+  fromSequence           BigInt    @default(0) @map("from_sequence")
+  upToSequence           BigInt    @map("up_to_sequence")
+  fromDeviceListPosition BigInt    @default(0) @map("from_device_list_position")
+  deviceListPosition     BigInt    @map("device_list_position")
+  oneTimeKeyCount        Int       @default(0) @map("one_time_key_count")
+  unusedFallbackKey      Boolean   @default(false) @map("unused_fallback_key")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt              DateTime  @map("expires_at") @db.Timestamptz(6)
+  acknowledgedAt         DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+
+  cursor MatrixToDeviceCursor @relation(fields: [deviceId], references: [deviceId], onDelete: Restrict)
+
+  @@index([deviceId, createdAt], map: "matrix_to_device_sync_batches_device_created_idx")
+  @@index([deviceId, fromSequence, upToSequence], map: "matrix_to_device_sync_batches_device_range_idx")
+  @@index([expiresAt], map: "matrix_to_device_sync_batches_expires_idx")
+  @@map("matrix_to_device_sync_batches")
+}
+
+model EncryptedKeyBundle {
+  id             String                   @id @default(uuid()) @db.Uuid
+  userId         String                   @map("user_id") @db.Uuid
+  sourceDeviceId String?                  @map("source_device_id") @db.Uuid
+  version        Int
+  protection     RecoveryBundleProtection
+  cipherSuite    String                   @map("cipher_suite") @db.VarChar(64)
+  ciphertext     Bytes
+  nonce          Bytes
+  salt           Bytes?
+  kdfAlgorithm   String?                  @map("kdf_algorithm") @db.VarChar(32)
+  kdfParameters  Json?                    @map("kdf_parameters")
+  createdAt      DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  supersededAt   DateTime?                @map("superseded_at") @db.Timestamptz(6)
+
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceDevice Device? @relation("RecoveryBundleSourceDevice", fields: [sourceDeviceId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, version], map: "encrypted_key_bundles_user_version_key")
+  @@index([userId, supersededAt], map: "encrypted_key_bundles_current_idx")
+  @@map("encrypted_key_bundles")
+}
+
+model CashierOnboardingInvitation {
+  id                   String    @id @default(uuid()) @db.Uuid
+  createdByAdminUserId String    @map("created_by_admin_user_id") @db.Uuid
+  redeemedByCashierId  String?   @unique(map: "cashier_onboarding_invitations_redeemed_by_key") @map("redeemed_by_cashier_id") @db.Uuid
+  codeLookupHash       String    @unique(map: "cashier_onboarding_invitations_lookup_hash_key") @map("code_lookup_hash") @db.Char(64)
+  codeCiphertext       Bytes     @map("code_ciphertext")
+  codeNonce            Bytes     @map("code_nonce")
+  encryptionKeyVersion Int       @map("encryption_key_version")
+  cipherFormatVersion  Int       @default(0) @map("cipher_format_version")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt            DateTime  @map("expires_at") @db.Timestamptz(6)
+  redeemedAt           DateTime? @map("redeemed_at") @db.Timestamptz(6)
+  revokedAt            DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  createdByAdmin User            @relation("CashierOnboardingInvitationCreatedBy", fields: [createdByAdminUserId], references: [id], onDelete: Restrict)
+  redeemedBy     CashierProfile? @relation(fields: [redeemedByCashierId], references: [userId], onDelete: Restrict)
+
+  @@index([expiresAt, redeemedAt, revokedAt], map: "cashier_onboarding_invitations_availability_idx")
+  @@map("cashier_onboarding_invitations")
+}
+
+model CashierInvitation {
+  id                   String    @id @default(uuid()) @db.Uuid
+  cashierUserId        String    @map("cashier_user_id") @db.Uuid
+  codeLookupHash       String    @unique(map: "cashier_invitations_code_lookup_hash_key") @map("code_lookup_hash") @db.Char(64)
+  codeCiphertext       Bytes     @map("code_ciphertext")
+  codeNonce            Bytes     @map("code_nonce")
+  encryptionKeyVersion Int       @map("encryption_key_version")
+  cipherFormatVersion  Int       @default(0) @map("cipher_format_version")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedAt            DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  cashier     CashierProfile @relation(fields: [cashierUserId], references: [userId], onDelete: Restrict)
+  assignments Assignment[]
+
+  @@index([cashierUserId, revokedAt], map: "cashier_invitations_cashier_revoked_idx")
+  @@map("cashier_invitations")
+}
+
+model CashierSubscription {
+  id                   String             @id @default(uuid()) @db.Uuid
+  cashierUserId        String             @map("cashier_user_id") @db.Uuid
+  status               SubscriptionStatus @default(INACTIVE)
+  startsAt             DateTime           @map("starts_at") @db.Timestamptz(6)
+  endsAt               DateTime?          @map("ends_at") @db.Timestamptz(6)
+  managedByAdminUserId String             @map("managed_by_admin_user_id") @db.Uuid
+  reasonCode           String?            @map("reason_code") @db.VarChar(64)
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cashier        CashierProfile @relation(fields: [cashierUserId], references: [userId], onDelete: Restrict)
+  managedByAdmin User           @relation("SubscriptionManagedBy", fields: [managedByAdminUserId], references: [id], onDelete: Restrict)
+
+  @@index([cashierUserId, status, endsAt], map: "cashier_subscriptions_availability_idx")
+  @@map("cashier_subscriptions")
+}
+
+model Assignment {
+  id                   String                @id @default(uuid()) @db.Uuid
+  clientUserId         String                @map("client_user_id") @db.Uuid
+  cashierUserId        String                @map("cashier_user_id") @db.Uuid
+  invitationId         String?               @map("invitation_id") @db.Uuid
+  previousAssignmentId String?               @unique(map: "assignments_previous_assignment_key") @map("previous_assignment_id") @db.Uuid
+  createdByAdminUserId String?               @map("created_by_admin_user_id") @db.Uuid
+  startReason          AssignmentStartReason @map("start_reason")
+  endReason            AssignmentEndReason?  @map("end_reason")
+  startedAt            DateTime              @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt              DateTime?             @map("ended_at") @db.Timestamptz(6)
+
+  client                 ClientProfile                 @relation(fields: [clientUserId], references: [userId], onDelete: Restrict)
+  cashier                CashierProfile                @relation(fields: [cashierUserId], references: [userId], onDelete: Restrict)
+  invitation             CashierInvitation?            @relation(fields: [invitationId], references: [id], onDelete: Restrict)
+  previous               Assignment?                   @relation("AssignmentChain", fields: [previousAssignmentId], references: [id], onDelete: Restrict)
+  next                   Assignment?                   @relation("AssignmentChain")
+  createdByAdmin         User?                         @relation("AssignmentCreatedBy", fields: [createdByAdminUserId], references: [id], onDelete: SetNull)
+  conversation           Conversation?
+  block                  Block?
+  pendingReassignment    ReassignmentRequest?          @relation("ReassignmentPrevious")
+  resultingReassignment  ReassignmentRequest?          @relation("ReassignmentResult")
+  pendingEvidenceUploads PendingReportEvidenceUpload[]
+
+  @@index([clientUserId, endedAt], map: "assignments_client_ended_idx")
+  @@index([cashierUserId, endedAt], map: "assignments_cashier_ended_idx")
+  @@index([startedAt], map: "assignments_started_at_idx")
+  @@map("assignments")
+}
+
+model ReassignmentRequest {
+  id                     String             @id @default(uuid()) @db.Uuid
+  clientUserId           String             @map("client_user_id") @db.Uuid
+  previousAssignmentId   String             @unique(map: "reassignment_requests_previous_assignment_key") @map("previous_assignment_id") @db.Uuid
+  excludedCashierUserId  String             @map("excluded_cashier_user_id") @db.Uuid
+  triggerBlockId         String?            @unique(map: "reassignment_requests_trigger_block_key") @map("trigger_block_id") @db.Uuid
+  resultingAssignmentId  String?            @unique(map: "reassignment_requests_resulting_assignment_key") @map("resulting_assignment_id") @db.Uuid
+  reason                 ReassignmentReason
+  status                 ReassignmentStatus @default(PENDING)
+  requestedAt            DateTime           @default(now()) @map("requested_at") @db.Timestamptz(6)
+  lastAttemptAt          DateTime?          @map("last_attempt_at") @db.Timestamptz(6)
+  attemptCount           Int                @default(0) @map("attempt_count")
+  completedAt            DateTime?          @map("completed_at") @db.Timestamptz(6)
+  cancellationReasonCode String?            @map("cancellation_reason_code") @db.VarChar(64)
+
+  client              ClientProfile  @relation(fields: [clientUserId], references: [userId], onDelete: Restrict)
+  previousAssignment  Assignment     @relation("ReassignmentPrevious", fields: [previousAssignmentId], references: [id], onDelete: Restrict)
+  excludedCashier     CashierProfile @relation("ReassignmentExcludedCashier", fields: [excludedCashierUserId], references: [userId], onDelete: Restrict)
+  triggerBlock        Block?         @relation(fields: [triggerBlockId], references: [id], onDelete: Restrict)
+  resultingAssignment Assignment?    @relation("ReassignmentResult", fields: [resultingAssignmentId], references: [id], onDelete: Restrict)
+
+  @@index([status, requestedAt], map: "reassignment_requests_status_requested_idx")
+  @@index([clientUserId, status], map: "reassignment_requests_client_status_idx")
+  @@map("reassignment_requests")
+}
+
+model Conversation {
+  id           String             @id @default(uuid()) @db.Uuid
+  assignmentId String             @unique(map: "conversations_assignment_key") @map("assignment_id") @db.Uuid
+  status       ConversationStatus @default(ACTIVE)
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  closedAt     DateTime?          @map("closed_at") @db.Timestamptz(6)
+
+  assignment               Assignment                    @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  messages                 Message[]
+  pendingAttachmentUploads PendingAttachmentUpload[]
+  pendingEvidenceUploads   PendingReportEvidenceUpload[]
+  oneTimePreKeyClaims      OneTimePreKeyClaim[]
+  matrixKeyClaimRequests   MatrixKeyClaimRequest[]
+  matrixToDeviceEvents     MatrixToDeviceEvent[]
+
+  @@index([status, createdAt], map: "conversations_status_created_idx")
+  @@map("conversations")
+}
+
+model Message {
+  id              String      @id @default(uuid()) @db.Uuid
+  conversationId  String      @map("conversation_id") @db.Uuid
+  senderUserId    String      @map("sender_user_id") @db.Uuid
+  senderDeviceId  String      @map("sender_device_id") @db.Uuid
+  clientMessageId String      @map("client_message_id") @db.Uuid
+  serverSequence  BigInt      @unique(map: "messages_server_sequence_key") @default(autoincrement()) @map("server_sequence")
+  kind            MessageKind
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt       DateTime    @default(dbgenerated("(CURRENT_TIMESTAMP + INTERVAL '48 hours')")) @map("expires_at") @db.Timestamptz(6)
+
+  conversation  Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderDevice  Device              @relation("MessageSenderDevice", fields: [senderDeviceId, senderUserId], references: [id, userId], onDelete: Restrict)
+  envelopes     MessageEnvelope[]
+  receipts      MessageReceipt[]
+  attachment    Attachment?
+  notifications InAppNotification[]
+
+  @@unique([senderDeviceId, clientMessageId], map: "messages_sender_client_id_key")
+  @@index([conversationId, createdAt], map: "messages_conversation_created_idx")
+  @@index([expiresAt], map: "messages_expires_at_idx")
+  @@map("messages")
+}
+
+model MessageEnvelope {
+  id                String   @id @default(uuid()) @db.Uuid
+  messageId         String   @map("message_id") @db.Uuid
+  recipientDeviceId String   @map("recipient_device_id") @db.Uuid
+  protocolVersion   String   @map("protocol_version") @db.VarChar(32)
+  cipherSuite       String   @map("cipher_suite") @db.VarChar(64)
+  ciphertext        Bytes
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  message         Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  recipientDevice Device  @relation("EnvelopeRecipientDevice", fields: [recipientDeviceId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, recipientDeviceId], map: "message_envelopes_message_device_key")
+  @@index([recipientDeviceId, createdAt], map: "message_envelopes_device_created_idx")
+  @@map("message_envelopes")
+}
+
+model MessageReceipt {
+  messageId       String                @map("message_id") @db.Uuid
+  recipientUserId String                @map("recipient_user_id") @db.Uuid
+  status          MessageDeliveryStatus @default(SENT)
+  deliveredAt     DateTime?             @map("delivered_at") @db.Timestamptz(6)
+  readAt          DateTime?             @map("read_at") @db.Timestamptz(6)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  recipient User    @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, recipientUserId])
+  @@index([recipientUserId, status, updatedAt], map: "message_receipts_recipient_status_idx")
+  @@map("message_receipts")
+}
+
+model Attachment {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  messageId          String                 @unique(map: "attachments_message_key") @map("message_id") @db.Uuid
+  objectKey          String                 @unique(map: "attachments_object_key_key") @map("object_key") @db.VarChar(512)
+  declaredMimeType   String                 @map("declared_mime_type") @db.VarChar(32)
+  plaintextByteSize  Int                    @map("plaintext_byte_size")
+  ciphertextByteSize Int                    @map("ciphertext_byte_size")
+  ciphertextSha256   String                 @map("ciphertext_sha256") @db.Char(64)
+  cipherSuite        String                 @map("cipher_suite") @db.VarChar(64)
+  status             AttachmentUploadStatus @default(PENDING)
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  purgeAttempts      Int                    @default(0) @map("purge_attempts")
+  lastPurgeAttemptAt DateTime?              @map("last_purge_attempt_at") @db.Timestamptz(6)
+  lastPurgeErrorCode String?                @map("last_purge_error_code") @db.VarChar(64)
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Restrict)
+
+  @@index([status], map: "attachments_status_idx")
+  @@map("attachments")
+}
+
+model PendingAttachmentUpload {
+  id                 String    @id @default(uuid()) @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  conversationId     String    @map("conversation_id") @db.Uuid
+  objectKey          String    @unique(map: "pending_attachment_uploads_object_key_key") @map("object_key") @db.VarChar(512)
+  declaredMimeType   String    @map("declared_mime_type") @db.VarChar(32)
+  plaintextByteSize  Int       @map("plaintext_byte_size")
+  ciphertextByteSize Int       @map("ciphertext_byte_size")
+  ciphertextSha256   String    @map("ciphertext_sha256") @db.Char(64)
+  grantExpiresAt     DateTime  @map("grant_expires_at") @db.Timestamptz(6)
+  purgeAttempts      Int       @default(0) @map("purge_attempts")
+  lastPurgeAttemptAt DateTime? @map("last_purge_attempt_at") @db.Timestamptz(6)
+  lastPurgeErrorCode String?   @map("last_purge_error_code") @db.VarChar(64)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+
+  @@index([grantExpiresAt], map: "pending_attachment_uploads_expires_idx")
+  @@index([userId, conversationId], map: "pending_attachment_uploads_owner_conversation_idx")
+  @@map("pending_attachment_uploads")
+}
+
+model Block {
+  id            String         @id @default(uuid()) @db.Uuid
+  clientUserId  String         @map("client_user_id") @db.Uuid
+  cashierUserId String         @map("cashier_user_id") @db.Uuid
+  assignmentId  String         @unique(map: "blocks_assignment_key") @map("assignment_id") @db.Uuid
+  initiatedBy   BlockInitiator @map("initiated_by")
+  reason        String         @db.VarChar(1000)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  client              ClientProfile        @relation(fields: [clientUserId], references: [userId], onDelete: Restrict)
+  cashier             CashierProfile       @relation(fields: [cashierUserId], references: [userId], onDelete: Restrict)
+  assignment          Assignment           @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  report              Report?
+  reassignmentRequest ReassignmentRequest?
+
+  @@unique([clientUserId, cashierUserId, initiatedBy], map: "blocks_pair_initiator_key")
+  @@index([clientUserId, initiatedBy], map: "blocks_client_initiator_idx")
+  @@index([cashierUserId, initiatedBy], map: "blocks_cashier_initiator_idx")
+  @@map("blocks")
+}
+
+model InvestigationKey {
+  id          String    @id @default(uuid()) @db.Uuid
+  version     Int       @unique
+  algorithm   String    @db.VarChar(64)
+  publicKey   Bytes     @map("public_key")
+  fingerprint String    @unique @db.Char(64)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  activatedAt DateTime  @map("activated_at") @db.Timestamptz(6)
+  retiredAt   DateTime? @map("retired_at") @db.Timestamptz(6)
+
+  evidence               ReportEvidence[]
+  pendingEvidenceUploads PendingReportEvidenceUpload[]
+
+  @@map("investigation_keys")
+}
+
+model Report {
+  id                    String         @id @default(uuid()) @db.Uuid
+  blockId               String         @unique(map: "reports_block_key") @map("block_id") @db.Uuid
+  status                ReportStatus   @default(OPEN)
+  reviewedByAdminUserId String?        @map("reviewed_by_admin_user_id") @db.Uuid
+  reviewStartedAt       DateTime?      @map("review_started_at") @db.Timestamptz(6)
+  outcome               ReportOutcome?
+  resolutionSummary     String?        @map("resolution_summary") @db.VarChar(2000)
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  closeRequestedAt      DateTime?      @map("close_requested_at") @db.Timestamptz(6)
+  closedAt              DateTime?      @map("closed_at") @db.Timestamptz(6)
+  evidencePurgedAt      DateTime?      @map("evidence_purged_at") @db.Timestamptz(6)
+  subjectNotifiedAt     DateTime?      @map("subject_notified_at") @db.Timestamptz(6)
+
+  block      Block             @relation(fields: [blockId], references: [id], onDelete: Restrict)
+  reviewedBy User?             @relation("ReportReviewedBy", fields: [reviewedByAdminUserId], references: [id], onDelete: SetNull)
+  evidence   ReportEvidence?
+  closureJob ReportClosureJob?
+
+  @@index([status, createdAt], map: "reports_status_created_idx")
+  @@map("reports")
+}
+
+model ReportClosureJob {
+  reportId               String    @id @map("report_id") @db.Uuid
+  requestedByAdminUserId String    @map("requested_by_admin_user_id") @db.Uuid
+  evidenceObjectKey      String    @unique(map: "report_closure_jobs_evidence_object_key_key") @map("evidence_object_key") @db.VarChar(512)
+  purgeNotBefore         DateTime  @map("purge_not_before") @db.Timestamptz(6)
+  attempts               Int       @default(0)
+  nextAttemptAt          DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  leaseToken             String?   @map("lease_token") @db.Uuid
+  leasedUntil            DateTime? @map("leased_until") @db.Timestamptz(6)
+  lastAttemptAt          DateTime? @map("last_attempt_at") @db.Timestamptz(6)
+  lastErrorCode          String?   @map("last_error_code") @db.VarChar(64)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  report           Report @relation(fields: [reportId], references: [id], onDelete: Restrict)
+  requestedByAdmin User   @relation("ReportClosureRequestedBy", fields: [requestedByAdminUserId], references: [id], onDelete: Restrict)
+
+  @@index([nextAttemptAt, leasedUntil], map: "report_closure_jobs_due_idx")
+  @@map("report_closure_jobs")
+}
+
+model ReportEvidence {
+  id                    String   @id @default(uuid()) @db.Uuid
+  reportId              String   @unique(map: "report_evidence_report_key") @map("report_id") @db.Uuid
+  investigationKeyId    String   @map("investigation_key_id") @db.Uuid
+  objectKey             String   @unique(map: "report_evidence_object_key_key") @map("object_key") @db.VarChar(512)
+  ciphertextByteSize    BigInt   @map("ciphertext_byte_size")
+  ciphertextSha256      String   @map("ciphertext_sha256") @db.Char(64)
+  cipherSuite           String   @map("cipher_suite") @db.VarChar(64)
+  manifestVersion       Int      @map("manifest_version")
+  uploadAuthorizedUntil DateTime @map("upload_authorized_until") @db.Timestamptz(6)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  report           Report           @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  investigationKey InvestigationKey @relation(fields: [investigationKeyId], references: [id], onDelete: Restrict)
+
+  @@map("report_evidence")
+}
+
+model PendingReportEvidenceUpload {
+  id                 String    @id @default(uuid()) @db.Uuid
+  clientUserId       String    @map("client_user_id") @db.Uuid
+  assignmentId       String    @map("assignment_id") @db.Uuid
+  conversationId     String    @map("conversation_id") @db.Uuid
+  investigationKeyId String    @map("investigation_key_id") @db.Uuid
+  objectKey          String    @unique(map: "pending_report_evidence_uploads_object_key_key") @map("object_key") @db.VarChar(512)
+  ciphertextByteSize Int       @map("ciphertext_byte_size")
+  ciphertextSha256   String    @map("ciphertext_sha256") @db.Char(64)
+  cipherSuite        String    @map("cipher_suite") @db.VarChar(64)
+  manifestVersion    Int       @map("manifest_version")
+  grantExpiresAt     DateTime  @map("grant_expires_at") @db.Timestamptz(6)
+  purgeAttempts      Int       @default(0) @map("purge_attempts")
+  lastPurgeAttemptAt DateTime? @map("last_purge_attempt_at") @db.Timestamptz(6)
+  lastPurgeErrorCode String?   @map("last_purge_error_code") @db.VarChar(64)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  client           User             @relation(fields: [clientUserId], references: [id], onDelete: Restrict)
+  assignment       Assignment       @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  conversation     Conversation     @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  investigationKey InvestigationKey @relation(fields: [investigationKeyId], references: [id], onDelete: Restrict)
+
+  @@unique([assignmentId], map: "pending_report_evidence_uploads_assignment_key")
+  @@index([grantExpiresAt], map: "pending_report_evidence_uploads_expires_idx")
+  @@index([clientUserId, assignmentId], map: "pending_report_evidence_uploads_owner_assignment_idx")
+  @@map("pending_report_evidence_uploads")
+}
+
+model AccountReview {
+  id                  String                @id @default(uuid()) @db.Uuid
+  clientUserId        String                @map("client_user_id") @db.Uuid
+  reason              AccountReviewReason
+  status              AccountReviewStatus   @default(OPEN)
+  assignedAdminUserId String?               @map("assigned_admin_user_id") @db.Uuid
+  closedByAdminUserId String?               @map("closed_by_admin_user_id") @db.Uuid
+  outcome             AccountReviewOutcome?
+  resolutionSummary   String?               @map("resolution_summary") @db.VarChar(2000)
+  openedAt            DateTime              @default(now()) @map("opened_at") @db.Timestamptz(6)
+  reviewStartedAt     DateTime?             @map("review_started_at") @db.Timestamptz(6)
+  closedAt            DateTime?             @map("closed_at") @db.Timestamptz(6)
+
+  client        ClientProfile @relation(fields: [clientUserId], references: [userId], onDelete: Restrict)
+  assignedAdmin User?         @relation("AccountReviewAssignedTo", fields: [assignedAdminUserId], references: [id], onDelete: SetNull)
+  closedByAdmin User?         @relation("AccountReviewClosedBy", fields: [closedByAdminUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, openedAt], map: "account_reviews_status_opened_idx")
+  @@index([clientUserId, status], map: "account_reviews_client_status_idx")
+  @@map("account_reviews")
+}
+
+model PushSubscription {
+  id                   String    @id @default(uuid()) @db.Uuid
+  deviceId             String    @map("device_id") @db.Uuid
+  endpointHash         String    @unique(map: "push_subscriptions_endpoint_hash_key") @map("endpoint_hash") @db.Char(64)
+  sealedPayload        Bytes     @map("sealed_payload")
+  payloadNonce         Bytes     @map("payload_nonce")
+  encryptionKeyVersion Int       @map("encryption_key_version")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSuccessAt        DateTime? @map("last_success_at") @db.Timestamptz(6)
+  disabledAt           DateTime? @map("disabled_at") @db.Timestamptz(6)
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, disabledAt], map: "push_subscriptions_device_disabled_idx")
+  @@map("push_subscriptions")
+}
+
+model InAppNotification {
+  id              String           @id @default(uuid()) @db.Uuid
+  userId          String           @map("user_id") @db.Uuid
+  messageId       String?          @map("message_id") @db.Uuid
+  type            NotificationType
+  relatedEntityId String?          @map("related_entity_id") @db.Uuid
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  readAt          DateTime?        @map("read_at") @db.Timestamptz(6)
+  expiresAt       DateTime?        @map("expires_at") @db.Timestamptz(6)
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt], map: "in_app_notifications_user_unread_idx")
+  @@index([expiresAt], map: "in_app_notifications_expires_at_idx")
+  @@map("in_app_notifications")
+}
+
+model AdminAuditEvent {
+  id           String               @id @default(uuid()) @db.Uuid
+  actorAdminId String               @map("actor_admin_id") @db.Uuid
+  action       AdminAuditAction
+  targetType   AdminAuditTargetType @map("target_type")
+  targetId     String?              @map("target_id") @db.Uuid
+  targetUserId String?              @map("target_user_id") @db.Uuid
+  reasonCode   String?              @map("reason_code") @db.VarChar(1000)
+  stateBefore  String?              @map("state_before") @db.VarChar(1000)
+  stateAfter   String?              @map("state_after") @db.VarChar(1000)
+  requestId    String               @map("request_id") @db.Uuid
+  ipHash       String?              @map("ip_hash") @db.Char(64)
+  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  actor      User  @relation("AuditActor", fields: [actorAdminId], references: [id], onDelete: Restrict)
+  targetUser User? @relation("AuditTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorAdminId, createdAt], map: "admin_audit_events_actor_created_idx")
+  @@index([targetType, targetId, createdAt], map: "admin_audit_events_target_created_idx")
+  @@index([targetUserId, createdAt], map: "admin_audit_events_target_user_idx")
+  @@map("admin_audit_events")
+}

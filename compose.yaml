@@ -1,0 +1,85 @@
+name: sinochat
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sinochat
+      POSTGRES_USER: sinochat
+      POSTGRES_PASSWORD: sinochat
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - sinochat_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sinochat -d sinochat"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  object-storage:
+    # MinIO se usa solo para desarrollo y pruebas locales. Produccion debe
+    # utilizar un proveedor S3 mantenido y validado mediante el runbook.
+    image: minio/minio:RELEASE.2025-07-23T15-54-02Z@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER falta en .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD falta en .env}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - sinochat_object_storage:/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  object-storage-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    restart: "no"
+    depends_on:
+      object-storage:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER falta en .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD falta en .env}
+      OBJECT_STORAGE_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY_ID:?OBJECT_STORAGE_ACCESS_KEY_ID falta en .env}
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:?OBJECT_STORAGE_SECRET_ACCESS_KEY falta en .env}
+    volumes:
+      - ./infra/minio/sinochat-ephemeral-policy.json:/config/sinochat-ephemeral-policy.json:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        mc alias set local http://object-storage:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}" >/dev/null &&
+        mc mb --ignore-existing local/sinochat-ephemeral >/dev/null &&
+        mc mb --ignore-existing local/sinochat-admin-control >/dev/null &&
+        mc anonymous set none local/sinochat-ephemeral >/dev/null &&
+        mc anonymous set none local/sinochat-admin-control >/dev/null &&
+        mc version enable local/sinochat-ephemeral >/dev/null &&
+        (mc admin user info local "$${OBJECT_STORAGE_ACCESS_KEY_ID}" >/dev/null 2>&1 ||
+          mc admin user add local "$${OBJECT_STORAGE_ACCESS_KEY_ID}" "$${OBJECT_STORAGE_SECRET_ACCESS_KEY}" >/dev/null) &&
+        mc admin policy create local sinochat-ephemeral /config/sinochat-ephemeral-policy.json >/dev/null &&
+        mc admin policy attach local sinochat-ephemeral --user "$${OBJECT_STORAGE_ACCESS_KEY_ID}" >/dev/null &&
+        mc version info local/sinochat-ephemeral
+
+volumes:
+  sinochat_postgres:
+  sinochat_object_storage:
